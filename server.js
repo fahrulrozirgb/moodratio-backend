@@ -9,24 +9,32 @@ const client = new OAuth2Client(
   "633033039034-louql75ipqo2dcquml83e85rds82gt26.apps.googleusercontent.com"
 );
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// Konfigurasi Database Online (Aiven)
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "mood_ratio_db",
+  host: process.env.DB_HOST || "mysql-30504d1e-ac9613522-b60c.i.aivencloud.com",
+  user: process.env.DB_USER || "avnadmin",
+  password: process.env.DB_PASSWORD || "AVNS_uxW6XiQMivQG9Dd2z1_",
+  database: process.env.DB_NAME || "defaultdb",
+  port: process.env.DB_PORT || 16705,
+  ssl: {
+    rejectUnauthorized: false, // Penting untuk Aiven
+  },
 });
 
 db.connect((err) => {
-  if (err) console.error("Gagal terhubung ke MySQL XAMPP.");
-  else console.log("Database Terhubung: mood_ratio_db");
+  if (err) {
+    console.error("Gagal terhubung ke Database Online:", err.message);
+  } else {
+    console.log("Database Terhubung ke Aiven Cloud!");
+  }
 });
 
 // --- AUTH (REGISTER & LOGIN) ---
 
-// ENDPOINT REGISTER (YANG TADI HILANG)
 app.post("/api/register", (req, res) => {
   const { name, email, password } = req.body;
   const sql =
@@ -189,4 +197,6 @@ app.get("/api/leaderboard", (req, res) => {
   );
 });
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+// Port Dinamis untuk Render
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
