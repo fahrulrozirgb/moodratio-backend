@@ -13,28 +13,32 @@ const client = new OAuth2Client(
 app.use(cors());
 app.use(express.json());
 
-// Konfigurasi Database Online (Aiven)
-const db = mysql.createConnection({
+// --- PERBAIKAN DI SINI: MENGGUNAKAN CREATEPOOL AGAR KONEKSI TIDAK GAMPANG PUTUS ---
+const db = mysql.createPool({
   host: process.env.DB_HOST || "mysql-30504d1e-ac9613522-b60c.i.aivencloud.com",
   user: process.env.DB_USER || "avnadmin",
   password: process.env.DB_PASSWORD || "AVNS_uxW6XiQMivQG9Dd2z1_",
   database: process.env.DB_NAME || "defaultdb",
   port: process.env.DB_PORT || 16705,
   ssl: {
-    rejectUnauthorized: false, // Penting untuk Aiven
+    rejectUnauthorized: false,
   },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-db.connect((err) => {
+// Tes Koneksi Pool
+db.getConnection((err, connection) => {
   if (err) {
     console.error("Gagal terhubung ke Database Online:", err.message);
   } else {
-    console.log("Database Terhubung ke Aiven Cloud!");
+    console.log("Database Terhubung ke Aiven Cloud (Sistem Pool)!");
+    connection.release(); // Sangat penting untuk melepas koneksi kembali ke pool
   }
 });
 
 // --- AUTH (REGISTER & LOGIN) ---
-
 app.post("/api/register", (req, res) => {
   const { name, email, password } = req.body;
   const sql =
@@ -56,6 +60,7 @@ app.post("/api/login", (req, res) => {
     "SELECT id, name, email, xp FROM users WHERE email = ? AND password = ?",
     [email, password],
     (err, results) => {
+      if (err) return res.status(500).json(err);
       if (results && results.length > 0)
         res.json({ success: true, user: results[0] });
       else res.status(401).json({ error: "Email atau Password salah!" });
@@ -90,9 +95,14 @@ app.put("/api/tasks/:id/complete", (req, res) => {
     [req.params.id],
     (err) => {
       if (err) return res.status(500).json(err);
-      db.query("UPDATE users SET xp = xp + 10 WHERE id = ?", [userId], () => {
-        res.json({ success: true });
-      });
+      db.query(
+        "UPDATE users SET xp = xp + 10 WHERE id = ?",
+        [userId],
+        (err) => {
+          if (err) return res.status(500).json(err);
+          res.json({ success: true });
+        }
+      );
     }
   );
 });
@@ -155,6 +165,7 @@ app.get("/api/user-status/:userId", (req, res) => {
     "SELECT mood_score FROM mood_logs WHERE user_id = ? ORDER BY logged_at DESC LIMIT 3",
     [req.params.userId],
     (err, results) => {
+      if (err) return res.status(500).json(err);
       const avg =
         results.length > 0
           ? results.reduce((a, b) => a + b.mood_score, 0) / results.length
@@ -183,6 +194,7 @@ app.get("/api/user/:id", (req, res) => {
     "SELECT id, name, xp FROM users WHERE id = ?",
     [req.params.id],
     (err, results) => {
+      if (err) return res.status(500).json(err);
       res.json(results[0] || { name: "Guest", xp: 0 });
     }
   );
@@ -192,11 +204,11 @@ app.get("/api/leaderboard", (req, res) => {
   db.query(
     "SELECT name, xp FROM users ORDER BY xp DESC LIMIT 5",
     (err, results) => {
+      if (err) return res.status(500).json(err);
       res.json(results);
     }
   );
 });
 
-// Port Dinamis untuk Render
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
