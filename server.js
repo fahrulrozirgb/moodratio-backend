@@ -71,9 +71,9 @@ app.post("/api/login", (req, res) => {
 // --- TASKS ---
 app.post("/api/tasks", (req, res) => {
   const { userId, title, description, priority, deadline } = req.body;
-  // Menggunakan task_name dan is_completed sesuai struktur database kamu di DBeaver
+  // Gunakan 'title' dan 'status' sesuai kolom asli di database kamu
   const sql =
-    "INSERT INTO tasks (user_id, task_name, description, priority, is_completed, deadline) VALUES (?, ?, ?, ?, false, ?)";
+    "INSERT INTO tasks (user_id, title, description, priority, status, deadline) VALUES (?, ?, ?, ?, 'Pending', ?)";
 
   db.query(sql, [userId, title, description, priority, deadline], (err) => {
     if (err) {
@@ -114,12 +114,9 @@ app.get("/api/tasks-priority/:userId/:skorMood", (req, res) => {
   const { userId, skorMood } = req.params;
   let order = skorMood >= 4 ? "DESC" : "ASC";
 
-  // Perbaikan: Gunakan 'is_completed = false' dan pastikan 'deadline' ikut terambil
+  // Ambil kolom 'title' dan pastikan cek 'status'
   db.query(
-    `SELECT id, task_name, description, priority, deadline, is_completed 
-     FROM tasks 
-     WHERE user_id = ? AND is_completed = false 
-     ORDER BY priority ${order}`,
+    `SELECT id, title, description, priority, deadline FROM tasks WHERE user_id = ? AND status != 'Completed' ORDER BY priority ${order}`,
     [userId],
     (err, tasks) => {
       if (err) {
